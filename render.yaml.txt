@@ -3,7 +3,7 @@ services:
     name: jagx-pairing-server
     env: node
     plan: starter
-    repo: https://github.com/your-org/jagx-bot
+    repo: https://github.com/jagwazorld-max/Jagx
     branch: main
     buildCommand: npm install
     startCommand: node src/pairing-server.js
