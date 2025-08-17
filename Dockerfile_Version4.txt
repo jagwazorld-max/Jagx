@@ -1,0 +1,21 @@
+# JagX WhatsApp Bot Dockerfile
+
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+# Copy source files, assets, and data
+COPY src/ src/
+COPY tools/ tools/
+COPY assets/ assets/
+COPY data/ data/
+COPY .env .env
+
+# Expose port for pairing server
+EXPOSE 4260
+
+# Entrypoint script: starts pairing server and bot
+CMD ["node", "src/index.js"]

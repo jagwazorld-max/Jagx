@@ -1,0 +1,7 @@
+app = "jgz-bot"
+kill_signal = "SIGINT"
+kill_timeout = 5
+[env]
+  OWNERS = "2349160654415,2347050512232"
+[experimental]
+  auto_rollback = true

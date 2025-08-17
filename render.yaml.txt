@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: jagx-pairing-server
+    env: node
+    plan: starter
+    repo: https://github.com/your-org/jagx-bot
+    branch: main
+    buildCommand: npm install
+    startCommand: node src/pairing-server.js
+    envVars:
+      - key: OWNERS
+        value: "2349160654415,2347050512232"
+    disk:
+      name: jagx-data
+      mountPath: /data
+      sizeGB: 1
+    autoDeploy: true
+    ports:
+      - 4260

@@ -1,0 +1,8 @@
+[build]
+command = "npm install && npm start"
+publish = "."
+
+[[redirects]]
+  from = "/*"
+  to = "/src/bot.js"
+  status = 200
