@@ -1,19 +1,21 @@
-// JagX Pairing & Section Server - Render Ready
-// To deploy: Set OWNERS and DATA_DIR=/data in Render dashboard. Attach a persistent disk at /data.
+// JagX Pairing & Section Server - Render/Katabump Ready
+// Features: Auto generate pairing code and QR on first deploy!
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const qrcode = require('qrcode');
 
-// Environment variables for Render
 const PORT = process.env.PORT || 4260;
 const OWNERS = (process.env.OWNERS || '').split(',').map(x => x.trim());
 const PAIR_PREFIX = 'JagX';
-const DATA_DIR = process.env.DATA_DIR || '/data'; // Use /data for Render persistent disk
+const DATA_DIR = process.env.DATA_DIR || '/data';
 const PAIRINGS_FILE = path.join(DATA_DIR, 'pairings.json');
 const SECTIONS_FILE = path.join(DATA_DIR, 'sections.json');
+const AUTO_PAIR_FILE = path.join(DATA_DIR, 'auto-pair.json');
+const AUTO_PAIR_QR_FILE = path.join(DATA_DIR, 'auto-pair-qr.png');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -29,11 +31,37 @@ function saveJson(file, obj) { fs.writeFileSync(file, JSON.stringify(obj, null, 
 let pairings = loadJson(PAIRINGS_FILE);
 let sections = loadJson(SECTIONS_FILE);
 
-const app = express();
-app.use(bodyParser.json());
-
 // Generate secure code (JagX + 4 digits)
 function generateJagXCode() { return PAIR_PREFIX + crypto.randomInt(1000, 9999); }
+
+// AUTO-GENERATE PAIRING CODE + QR on first deploy
+function autoGeneratePairing() {
+  if (!fs.existsSync(AUTO_PAIR_FILE)) {
+    const code = generateJagXCode();
+    const expires = Date.now() + 24 * 60 * 60 * 1000; // 24hrs
+    const owner = OWNERS[0] || "admin";
+    const autoPairing = { code, expires, paired: false, owner };
+
+    // Save pairing to both files for user and QR
+    saveJson(AUTO_PAIR_FILE, autoPairing);
+
+    // Generate QR code for quick mobile pairing
+    const qrUrl = `https://katabump.com/pair?code=${code}`;
+    qrcode.toFile(AUTO_PAIR_QR_FILE, qrUrl, { width: 300 }, err => {
+      if (err) console.error("Auto QR generation failed", err);
+      else console.log("Auto pairing QR generated:", AUTO_PAIR_QR_FILE);
+    });
+
+    // Optionally: Register in pairings for easy access
+    pairings[`AUTO_${code}`] = autoPairing;
+    saveJson(PAIRINGS_FILE, pairings);
+  }
+}
+// Run on boot
+autoGeneratePairing();
+
+const app = express();
+app.use(bodyParser.json());
 
 // Owners create pairing code
 app.post('/create-pair', (req, res) => {
@@ -111,8 +139,30 @@ app.post('/remove-section', (req, res) => {
   res.json({ message: 'Section removed.', sectionId });
 });
 
-// Health check
-app.get('/', (req, res) => res.send('JagX Pairing & Section Server is running on Render.'));
+// Health check: Show auto pairing code and QR link
+app.get('/', (req, res) => {
+  let autoPairing = loadJson(AUTO_PAIR_FILE);
+  let qrExists = fs.existsSync(AUTO_PAIR_QR_FILE);
+  res.send(`
+    <h2>JagX Pairing & Section Server is running.</h2>
+    <div>
+      <strong>Auto Pairing Code:</strong> ${autoPairing.code || 'N/A'} <br/>
+      <strong>Expires:</strong> ${autoPairing.expires ? new Date(autoPairing.expires).toUTCString() : 'N/A'} <br/>
+      ${qrExists ? `<img src="/auto-pair-qr" width="200" />` : ''}
+      <br>
+      <a href="/pairings?owner=${OWNERS[0]}">View all pairings</a>
+    </div>
+  `);
+});
+
+// Serve QR code image
+app.get('/auto-pair-qr', (req, res) => {
+  if (fs.existsSync(AUTO_PAIR_QR_FILE)) {
+    res.sendFile(AUTO_PAIR_QR_FILE);
+  } else {
+    res.status(404).send('QR code not generated yet.');
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`JagX Pairing & Section Server running on port ${PORT}`);
